@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const { Client, GatewayIntentBits } = require("discord.js");
 const axios = require("axios");
 
@@ -10,71 +12,63 @@ const CHANNEL_ID = "1501900366424313977";
 const STATUS_URL = "https://a2.asurahosting.com:6370/status-json.xsl";
 
 let messageId = null;
+let lastSong = null;
 
-// 🎧 prende il brano live da Icecast
-async function getNowPlaying() {
+// 📡 recupero dati stream
+async function getStreamData() {
   try {
     const res = await axios.get(STATUS_URL);
 
-    const source = res.data.icestats.source;
+    const source = res.data?.icestats?.source;
     const stream = Array.isArray(source) ? source[0] : source;
 
-    return stream.title || "One Dance Radio - Live";
+    return {
+      live: !!stream,
+      title: stream?.title || "One Dance Radio - Live",
+      listeners: stream?.listeners || 0
+    };
+
   } catch (err) {
-    return "One Dance Radio - Live";
+    return {
+      live: false,
+      title: "One Dance Radio - Live",
+      listeners: 0
+    };
   }
 }
 
-async function getStreamStatus() {
-  try {
-    const res = await axios.get(STATUS_URL);
+// 🎨 embed radio
+function buildEmbed(data) {
+  return {
+    color: data.live ? 0xe60000 : 0x2f3136,
 
-    const source = res.data.icestats.source;
-    const stream = Array.isArray(source) ? source[0] : source;
-
-    return stream ? true : false;
-  } catch {
-    return false;
-  }
-}
-
-// 🎨 messaggio embed PRO
-async function update(channel) {
-  const song = await getNowPlaying();
-  const isLive = await getStreamStatus();
-  const listeners = await getListeners();
-
-  const embed = {
-    color: isLive ? 0xe60000 : 0x2f3136,
-
-    title: isLive
+    title: data.live
       ? "🔴 ONE DANCE RADIO – LIVE"
       : "⚫ ONE DANCE RADIO – OFF AIR",
 
-    description: isLive
-      ? `🎧 **NOW PLAYING**\n>>> **${song}**\n\n📡 Streaming attivo 24/7`
+    description: data.live
+      ? `🎧 **NOW PLAYING**\n>>> **${data.title}**\n\n📡 Streaming attivo 24/7`
       : `📡 La radio è momentaneamente offline`,
 
     thumbnail: {
       url: "https://a2.asurahosting.com:6370/favicon.ico"
     },
 
-    fields: isLive
+    fields: data.live
       ? [
           {
-            name: "🎵 Apri il player",
-          value: "[Clicca qui](https://www.onedanceradio.com/ascolta-one-dance-radio2/)"
+            name: "🎵 Ascolta ora",
+            value: "[Apri Player](https://www.onedanceradio.com/ascolta-one-dance-radio2/)"
           },
           {
             name: "👥 Ascoltatori live",
-            value: `**${listeners}** persone stanno ascoltando`
+            value: `**${data.listeners}**`
           }
         ]
       : [],
 
     image: {
-      url: "https://i.imgur.com/0X0X0X0.jpg" 
-      // 🔴 puoi sostituire con logo/banner tuo dopo
+      url: "https://www.onedanceradio.com/wp-content/uploads/2025/07/cropped-Logo-One-Dance-Radio-trasp.png"
     },
 
     footer: {
@@ -83,35 +77,41 @@ async function update(channel) {
 
     timestamp: new Date()
   };
+}
+
+// 🔄 update + speech bot
+async function update(channel) {
+  const data = await getStreamData();
+  const embed = buildEmbed(data);
 
   try {
+
+    // 🔥 PARLA SOLO SE CAMBIA BRANO
+    if (data.live && data.title !== lastSong) {
+      lastSong = data.title;
+
+      await channel.send(
+        `🎧 **Now Playing:** ${data.title}`
+      );
+    }
+
+    // 📌 messaggio embed fisso
     if (!messageId) {
       const msg = await channel.send({ embeds: [embed] });
       messageId = msg.id;
     } else {
       const msg = await channel.messages.fetch(messageId);
-      msg.edit({ embeds: [embed] });
+      await msg.edit({ embeds: [embed] });
     }
+
   } catch (err) {
     console.error("Errore update:", err);
-  }
-}
-
-async function getListeners() {
-  try {
-    const res = await axios.get(STATUS_URL);
-
-    const source = res.data.icestats.source;
-    const stream = Array.isArray(source) ? source[0] : source;
-
-    return stream.listeners || 0;
-  } catch {
-    return 0;
+    messageId = null;
   }
 }
 
 // 🤖 avvio bot
-client.on("clientReady", async () => {
+client.once("ready", async () => {
   console.log(`Bot online come ${client.user.tag}`);
 
   const channel = await client.channels.fetch(CHANNEL_ID);
