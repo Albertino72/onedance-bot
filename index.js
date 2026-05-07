@@ -123,5 +123,7 @@ client.once("ready", async () => {
   }, 15000);
 });
 
-// 🔑 login
+console.log("TOKEN LETTO:", process.env.TOKEN);
+console.log("LUNGHEZZA TOKEN:", process.env.TOKEN?.length);
+
 client.login(TOKEN).catch(console.error);
