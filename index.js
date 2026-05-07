@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const { Client, GatewayIntentBits } = require("discord.js");
 const axios = require("axios");
 
@@ -7,14 +5,16 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-const TOKEN = process.env.TOKEN;
+// 🔑 TOKEN da Render Environment Variables
+const TOKEN = process.env.DISCORD_TOKEN;
+
 const CHANNEL_ID = "1501900366424313977";
 const STATUS_URL = "https://a2.asurahosting.com:6370/status-json.xsl";
 
 let messageId = null;
 let lastSong = null;
 
-// 📡 recupero dati stream
+// 📡 STREAM DATA
 async function getStreamData() {
   try {
     const res = await axios.get(STATUS_URL);
@@ -37,7 +37,7 @@ async function getStreamData() {
   }
 }
 
-// 🎨 embed radio
+// 🎨 EMBED
 function buildEmbed(data) {
   return {
     color: data.live ? 0xe60000 : 0x2f3136,
@@ -79,23 +79,21 @@ function buildEmbed(data) {
   };
 }
 
-// 🔄 update + speech bot
+// 🔄 UPDATE BOT
 async function update(channel) {
   const data = await getStreamData();
   const embed = buildEmbed(data);
 
   try {
 
-    // 🔥 PARLA SOLO SE CAMBIA BRANO
+    // 🎧 PARLA SOLO SE CAMBIA BRANO
     if (data.live && data.title !== lastSong) {
       lastSong = data.title;
 
-      await channel.send(
-        `🎧 **Now Playing:** ${data.title}`
-      );
+      await channel.send(`🎧 Now Playing: **${data.title}**`);
     }
 
-    // 📌 messaggio embed fisso
+    // 📌 EMBED FISSO
     if (!messageId) {
       const msg = await channel.send({ embeds: [embed] });
       messageId = msg.id;
@@ -110,9 +108,10 @@ async function update(channel) {
   }
 }
 
-// 🤖 avvio bot
+// 🤖 READY
 client.once("ready", async () => {
   console.log(`Bot online come ${client.user.tag}`);
+  console.log("TOKEN LETTO:", process.env.DISCORD_TOKEN ? "OK" : "MANCANTE");
 
   const channel = await client.channels.fetch(CHANNEL_ID);
 
@@ -123,7 +122,5 @@ client.once("ready", async () => {
   }, 15000);
 });
 
-console.log("TOKEN LETTO:", process.env.TOKEN);
-console.log("LUNGHEZZA TOKEN:", process.env.TOKEN?.length);
-
+// 🔑 LOGIN
 client.login(TOKEN).catch(console.error);
